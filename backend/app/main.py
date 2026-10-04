@@ -167,7 +167,7 @@ async def list_task_files(task_id: str):
     raise HTTPException(status_code=404, detail="Zadanie nie zostało znalezione")
 
 
-@app.get("/api/downloads/{task_id}/files/{file_index:int}")
+@app.api_route("/api/downloads/{task_id}/files/{file_index:int}", methods=["GET", "HEAD"])
 async def download_task_file_by_index(task_id: str, file_index: int):
     """Serve a specific file from a task by its integer index. Zero path traversal risk."""
     if task_id.startswith("qbit_"):
@@ -226,8 +226,8 @@ async def download_task_file_by_index(task_id: str, file_index: int):
     raise HTTPException(status_code=404, detail="Plik o podanym indeksie nie istnieje")
 
 
-@app.get("/api/downloads/{task_id}/file")
-@app.get("/api/downloads/file/{task_id}")
+@app.api_route("/api/downloads/{task_id}/file", methods=["GET", "HEAD"])
+@app.api_route("/api/downloads/file/{task_id}", methods=["GET", "HEAD"])
 async def download_file_direct(task_id: str):
     """Serve completed download task file directly to browser via HTTP."""
     task = ytdlp_service.get_task(task_id)
