@@ -6,7 +6,8 @@ import {
   Package, 
   Film, 
   Settings as SettingsIcon,
-  HardDrive
+  HardDrive,
+  CheckCircle2
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -28,6 +29,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       const isActive = t.status === 'downloading' || t.status === 'checking' || t.status === 'queued';
       return matchService && isActive;
     }).length;
+  };
+
+  const countCompleted = () => {
+    return tasks.filter((t) => t.status === 'completed').length;
   };
 
   const navItems = [
@@ -132,11 +137,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
 
         <div style={{ padding: '16px 12px 4px', fontSize: '11px', fontWeight: 600, color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
-          Pobrane
+          Zakończone
         </div>
 
         <button
-          onClick={() => onTabChange('files')}
+          onClick={() => onTabChange('completed')}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -144,24 +149,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
             padding: '10px 14px',
             borderRadius: '8px',
             border: 'none',
-            backgroundColor: activeTab === 'files' ? 'var(--surface-high)' : 'transparent',
-            color: activeTab === 'files' ? 'var(--text)' : 'var(--text-muted)',
+            backgroundColor: activeTab === 'completed' ? 'var(--surface-high)' : 'transparent',
+            color: activeTab === 'completed' ? 'var(--text)' : 'var(--text-muted)',
             cursor: 'pointer',
             transition: 'all 0.15s ease',
-            fontWeight: activeTab === 'files' ? 600 : 500,
+            fontWeight: activeTab === 'completed' ? 600 : 500,
             textAlign: 'left',
           }}
           onMouseEnter={(e) => {
-            if (activeTab !== 'files') e.currentTarget.style.backgroundColor = 'var(--surface-container)';
+            if (activeTab !== 'completed') e.currentTarget.style.backgroundColor = 'var(--surface-container)';
           }}
           onMouseLeave={(e) => {
-            if (activeTab !== 'files') e.currentTarget.style.backgroundColor = 'transparent';
+            if (activeTab !== 'completed') e.currentTarget.style.backgroundColor = 'transparent';
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <HardDrive size={18} color={activeTab === 'files' ? 'var(--primary)' : 'var(--text-muted)'} />
-            <span>Pliki na serwerze</span>
+            <CheckCircle2 size={18} color={activeTab === 'completed' ? 'var(--success)' : 'var(--text-muted)'} />
+            <span>Ukończone zadania</span>
           </div>
+          {countCompleted() > 0 && (
+            <span style={{
+              fontSize: '11px',
+              fontWeight: 700,
+              padding: '2px 7px',
+              borderRadius: '12px',
+              backgroundColor: activeTab === 'completed' ? 'var(--success)' : 'var(--surface-highest)',
+              color: activeTab === 'completed' ? '#000000' : 'var(--text)',
+            }}>
+              {countCompleted()}
+            </span>
+          )}
         </button>
       </nav>
 

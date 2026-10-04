@@ -32,16 +32,14 @@ class DownloadTask(BaseModel):
     created_at: Optional[float] = None
     file_path: Optional[str] = None
     download_url: Optional[str] = None
+    files_count: Optional[int] = None
 
 
-class ServerFile(BaseModel):
+class TaskFile(BaseModel):
+    index: int
     name: str
-    path: str
     size: int
-    modified_at: float
     download_url: str
-    is_dir: bool = False
-    extension: str = ""
 
 
 class ClassifyResult(BaseModel):

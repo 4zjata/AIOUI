@@ -4,7 +4,6 @@ import { fetchDownloads, pauseTask, resumeTask, deleteTask } from './api/client'
 import { Sidebar } from './components/Sidebar';
 import { UniversalBar } from './components/UniversalBar';
 import { DownloadList } from './components/DownloadList';
-import { FilesBrowser } from './components/FilesBrowser';
 import { Toast } from './components/Toast';
 import { SettingsModal } from './components/SettingsModal';
 
@@ -180,25 +179,14 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Main View: Files Browser or Downloads List */}
-        {activeTab === 'files' ? (
-          <FilesBrowser
-            onNotify={(msg) => setToast({
-              id: Math.random().toString(),
-              title: msg,
-              message: '',
-              target: 'jdown',
-            })}
-          />
-        ) : (
-          <DownloadList
-            tasks={tasks}
-            activeTab={activeTab}
-            onPause={handlePause}
-            onResume={handleResume}
-            onDelete={handleDelete}
-          />
-        )}
+        {/* Downloads List */}
+        <DownloadList
+          tasks={tasks}
+          activeTab={activeTab}
+          onPause={handlePause}
+          onResume={handleResume}
+          onDelete={handleDelete}
+        />
       </main>
 
       {/* Corner Toast Notification */}

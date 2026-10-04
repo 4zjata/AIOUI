@@ -176,6 +176,9 @@ class QBitService:
                 task_id = f"qbit_{t.get('hash')}"
                 content_path = t.get("content_path")
                 download_url = f"/api/downloads/{task_id}/file" if status == TaskStatus.COMPLETED else None
+                files_count = None
+                if content_path and os.path.exists(content_path):
+                    files_count = len(os.listdir(content_path)) if os.path.isdir(content_path) else 1
 
                 tasks.append(
                     DownloadTask(
@@ -191,11 +194,28 @@ class QBitService:
                         created_at=float(t.get("added_on", 0)) if t.get("added_on") else None,
                         file_path=content_path,
                         download_url=download_url,
+                        files_count=files_count,
                     )
                 )
             return tasks
         except Exception as e:
             logger.error(f"Error querying qBittorrent: {e}")
+            return []
+
+    async def get_torrent_files(self, torrent_hash: str) -> List[dict]:
+        """Fetch list of files for a torrent from qBittorrent."""
+        client = await self._get_client()
+        try:
+            res = await client.get("/api/v2/torrents/files", params={"hash": torrent_hash})
+            if res.status_code in (401, 403):
+                self._authenticated = False
+                if await self.login():
+                    res = await client.get("/api/v2/torrents/files", params={"hash": torrent_hash})
+            if res.status_code == 200:
+                return res.json()
+            return []
+        except Exception as e:
+            logger.error(f"Error fetching torrent files for {torrent_hash}: {e}")
             return []
 
     async def pause_task(self, task_id: str) -> bool:

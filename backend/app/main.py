@@ -11,13 +11,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.models import AddLinkRequest, ClassifyResult, DownloadTask, TaskStatus, ServerFile
+from app.models import AddLinkRequest, ClassifyResult, DownloadTask, TaskStatus, TaskFile
 from app.classifier.router import classify_url
 from app.aggregator.engine import engine
 from app.services.ytdlp_service import ytdlp_service
 from app.services.qbit_service import qbit_service
 from app.services.jd_service import jd_service
-from app.services.file_service import file_service
 
 
 def get_media_type(filename: str) -> str:
@@ -120,39 +119,107 @@ async def delete_task(task_id: str, delete_files: bool = False):
     return {"success": success}
 
 
-# File Browsing and Direct HTTP Serving Endpoints
-@app.get("/api/files", response_model=List[ServerFile])
-async def list_server_files():
-    """List all completed files stored on the server in DOWNLOAD_DIR."""
-    return file_service.list_files()
+# Task-ID Based File Serving Endpoints (Strictly zero path traversal surface)
+@app.get("/api/downloads/{task_id}/files", response_model=List[TaskFile])
+async def list_task_files(task_id: str):
+    """List files belonging to a specific task_id without accepting any user filesystem path."""
+    # 1. qBittorrent torrent
+    if task_id.startswith("qbit_"):
+        torrent_hash = task_id.replace("qbit_", "")
+        raw_files = await qbit_service.get_torrent_files(torrent_hash)
+        return [
+            TaskFile(
+                index=int(f["index"]),
+                name=Path(f["name"]).name,
+                size=int(f.get("size", 0)),
+                download_url=f"/api/downloads/{task_id}/files/{f['index']}",
+            )
+            for f in raw_files
+        ]
+
+    # 2. yt-dlp task (1 file)
+    if task_id.startswith("ytdlp_") or ytdlp_service.get_task(task_id):
+        task = ytdlp_service.get_task(task_id)
+        if task and task.file_path and os.path.exists(task.file_path):
+            size = os.path.getsize(task.file_path)
+            return [
+                TaskFile(
+                    index=0,
+                    name=Path(task.file_path).name,
+                    size=size,
+                    download_url=f"/api/downloads/{task_id}/file",
+                )
+            ]
+
+    # 3. JDownloader task
+    all_tasks = await engine.get_all_tasks()
+    target_task = next((t for t in all_tasks if t.id == task_id), None)
+    if target_task:
+        return [
+            TaskFile(
+                index=0,
+                name=target_task.name,
+                size=target_task.total_bytes or 0,
+                download_url=f"/api/downloads/{task_id}/file",
+            )
+        ]
+
+    raise HTTPException(status_code=404, detail="Zadanie nie zostało znalezione")
 
 
-@app.get("/api/files/download")
-async def download_server_file(path: str = Query(..., description="Relative file path")):
-    """Serve any file located in the server's download directory via HTTP."""
-    target_path = file_service.resolve_safe_path(path)
-    if not target_path or not target_path.is_file():
-        raise HTTPException(status_code=404, detail="Plik nie został znaleziony lub brak uprawnień")
+@app.get("/api/downloads/{task_id}/files/{file_index:int}")
+async def download_task_file_by_index(task_id: str, file_index: int):
+    """Serve a specific file from a task by its integer index. Zero path traversal risk."""
+    if task_id.startswith("qbit_"):
+        torrent_hash = task_id.replace("qbit_", "")
+        raw_files = await qbit_service.get_torrent_files(torrent_hash)
+        target_file = next((f for f in raw_files if f.get("index") == file_index), None)
+        if not target_file:
+            raise HTTPException(status_code=404, detail="Plik o tym indeksie nie istnieje w zadaniu")
 
-    filename = target_path.name
-    return FileResponse(
-        path=str(target_path),
-        filename=filename,
-        media_type=get_media_type(filename),
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-            "Accept-Ranges": "bytes",
-        },
-    )
+        client = await qbit_service._get_client()
+        t_info_res = await client.get("/api/v2/torrents/info", params={"hashes": torrent_hash})
+        save_path = Path(settings.DOWNLOAD_DIR)
+        content_path = None
+        if t_info_res.status_code == 200 and t_info_res.json():
+            t_data = t_info_res.json()[0]
+            save_path = Path(t_data.get("save_path", settings.DOWNLOAD_DIR))
+            content_path = Path(t_data.get("content_path", "")) if t_data.get("content_path") else None
 
+        file_name = target_file["name"]
+        file_path = save_path / file_name
+        if not file_path.exists() and content_path:
+            if (content_path / Path(file_name).name).exists():
+                file_path = content_path / Path(file_name).name
+            elif (content_path / file_name).exists():
+                file_path = content_path / file_name
 
-@app.delete("/api/files")
-async def delete_server_file(path: str = Query(..., description="Relative file path")):
-    """Delete a file from the server's download directory."""
-    success = file_service.delete_file(path)
-    if not success:
-        raise HTTPException(status_code=400, detail="Nie udało się usunąć pliku")
-    return {"success": True}
+        if not file_path.exists():
+            local_download_dir = Path(settings.DOWNLOAD_DIR)
+            if (local_download_dir / file_name).exists():
+                file_path = local_download_dir / file_name
+            elif (local_download_dir / Path(file_name).name).exists():
+                file_path = local_download_dir / Path(file_name).name
+
+        if not file_path.exists() or not file_path.is_file():
+            raise HTTPException(status_code=404, detail="Plik nie został znaleziony na dysku")
+
+        filename = Path(file_name).name
+        return FileResponse(
+            path=str(file_path),
+            filename=filename,
+            media_type=get_media_type(filename),
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Accept-Ranges": "bytes",
+            },
+        )
+
+    # For single-file tasks (index 0)
+    if file_index == 0:
+        return await download_file_direct(task_id)
+
+    raise HTTPException(status_code=404, detail="Plik o podanym indeksie nie istnieje")
 
 
 @app.get("/api/downloads/{task_id}/file")
@@ -171,15 +238,15 @@ async def download_file_direct(task_id: str):
             raise HTTPException(status_code=425, detail="Plik jest jeszcze w trakcie pobierania lub przetwarzania")
 
     # If not in yt-dlp, check qBittorrent completed tasks
-    if not file_path:
-        qbit_tasks = await qbit_service.get_tasks()
-        for qt in qbit_tasks:
-            if qt.id == task_id and qt.file_path and os.path.exists(qt.file_path):
-                file_path = qt.file_path
-                filename = Path(qt.file_path).name
-                break
+    if not file_path and task_id.startswith("qbit_"):
+        torrent_hash = task_id.replace("qbit_", "")
+        raw_files = await qbit_service.get_torrent_files(torrent_hash)
+        if raw_files:
+            # Pick the largest file (e.g. video file in a movie torrent)
+            largest_file = max(raw_files, key=lambda f: f.get("size", 0))
+            return await download_task_file_by_index(task_id, int(largest_file["index"]))
 
-    # Fallback: look for file in download_dir matching task name or task_id
+    # Fallback: look for file in download_dir matching task name
     if not file_path:
         download_dir = Path(settings.DOWNLOAD_DIR)
         all_tasks = await engine.get_all_tasks()
@@ -196,18 +263,18 @@ async def download_file_direct(task_id: str):
                         filename = p.name
                         break
 
-        if not file_path and download_dir.exists():
-            matches = list(download_dir.glob(f"*{task_id}*"))
-            if matches and matches[0].is_file():
-                file_path = str(matches[0])
-                filename = matches[0].name
-
     if not file_path or not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Plik wynikowy nie został odnaleziony na serwerze")
 
-    # If it's a directory (e.g. multi-file torrent), raise notice or point to files
     if os.path.isdir(file_path):
-        raise HTTPException(status_code=400, detail="To zadanie jest folderem - użyj zakładki Pliki, aby pobrać poszczególne pliki")
+        # Look for largest file in the directory
+        dir_files = [f for f in Path(file_path).rglob("*") if f.is_file()]
+        if dir_files:
+            largest = max(dir_files, key=lambda f: f.stat().st_size)
+            file_path = str(largest)
+            filename = largest.name
+        else:
+            raise HTTPException(status_code=404, detail="Folder zadania jest pusty")
 
     return FileResponse(
         path=file_path,

@@ -22,16 +22,14 @@ export interface DownloadTask {
   created_at?: number | null;
   file_path?: string | null;
   download_url?: string | null;
+  files_count?: number | null;
 }
 
-export interface ServerFile {
+export interface TaskFile {
+  index: number;
   name: string;
-  path: string;
   size: number;
-  modified_at: number;
   download_url: string;
-  is_dir: boolean;
-  extension: string;
 }
 
 export interface ClassifyResult {

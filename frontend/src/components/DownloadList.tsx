@@ -20,6 +20,7 @@ export const DownloadList: React.FC<DownloadListProps> = ({
 }) => {
   const filteredTasks = tasks.filter((t) => {
     if (activeTab === 'all') return true;
+    if (activeTab === 'completed') return t.status === 'completed';
     return t.source === activeTab;
   });
 
@@ -28,6 +29,7 @@ export const DownloadList: React.FC<DownloadListProps> = ({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
         <h2 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
           {activeTab === 'all' && 'Wszystkie zadania'}
+          {activeTab === 'completed' && 'Ukończone zadania'}
           {activeTab === 'qbit' && 'Pobierania qBittorrent'}
           {activeTab === 'jdown' && 'Pakiety JDownloader'}
           {activeTab === 'ytdlp' && 'Materiały yt-dlp'}

@@ -1,5 +1,6 @@
-import React from 'react';
-import { DownloadTask, TargetService } from '../types';
+import React, { useState } from 'react';
+import { DownloadTask, TargetService, TaskFile } from '../types';
+import { fetchTaskFiles } from '../api/client';
 import { 
   Anchor, 
   Package, 
@@ -13,7 +14,11 @@ import {
   Laptop,
   Download,
   Link,
-  Check
+  Check,
+  FolderOpen,
+  ChevronDown,
+  ChevronUp,
+  FileText
 } from 'lucide-react';
 
 interface DownloadItemProps {
@@ -65,7 +70,26 @@ export const DownloadItem: React.FC<DownloadItemProps> = ({
   const isPaused = task.status === 'paused';
   const isCompleted = task.status === 'completed';
   const isError = task.status === 'error';
-  const [copied, setCopied] = React.useState(false);
+  const [copied, setCopied] = useState(false);
+  const [showFiles, setShowFiles] = useState(false);
+  const [files, setFiles] = useState<TaskFile[] | null>(null);
+  const [loadingFiles, setLoadingFiles] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  const toggleFiles = async () => {
+    if (!showFiles && !files) {
+      setLoadingFiles(true);
+      try {
+        const data = await fetchTaskFiles(task.id);
+        setFiles(data);
+      } catch (e) {
+        // error handling
+      } finally {
+        setLoadingFiles(false);
+      }
+    }
+    setShowFiles(!showFiles);
+  };
 
   return (
     <div style={{
@@ -124,6 +148,30 @@ export const DownloadItem: React.FC<DownloadItemProps> = ({
             }}>
               <Laptop size={12} /> Zapisano lokalnie
             </span>
+          )}
+
+          {isCompleted && task.files_count && task.files_count > 1 && (
+            <button
+              onClick={toggleFiles}
+              title="Pokaż listę plików zadania"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '11px',
+                padding: '3px 8px',
+                borderRadius: '4px',
+                backgroundColor: showFiles ? 'var(--primary-container)' : 'var(--surface-high)',
+                color: showFiles ? 'var(--primary)' : 'var(--text-muted)',
+                border: '1px solid var(--outline-subtle)',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <FolderOpen size={12} />
+              <span>{task.files_count} plików</span>
+              {showFiles ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
           )}
 
           {isCompleted && (
@@ -298,6 +346,87 @@ export const DownloadItem: React.FC<DownloadItemProps> = ({
           )}
         </div>
       </div>
+
+      {/* Expanded Task Files List */}
+      {showFiles && (
+        <div style={{
+          marginTop: '6px',
+          padding: '10px 14px',
+          backgroundColor: 'var(--surface-container)',
+          borderRadius: '8px',
+          border: '1px solid var(--outline-subtle)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+        }}>
+          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Pliki w zadaniu
+          </div>
+          {loadingFiles ? (
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Wczytywanie listy plików...</div>
+          ) : files && files.length > 0 ? (
+            files.map((file) => (
+              <div
+                key={file.index}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  fontSize: '12px',
+                  gap: '12px',
+                  padding: '4px 0',
+                  borderBottom: '1px solid var(--outline-subtle)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                  <FileText size={14} color="var(--primary)" style={{ flexShrink: 0 }} />
+                  <span style={{ color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {file.name}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                    {formatBytes(file.size)}
+                  </span>
+                  <a
+                    href={file.download_url}
+                    download
+                    title="Pobierz plik przez HTTP"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      color: 'var(--primary)',
+                      padding: '3px',
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <Download size={13} />
+                  </a>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}${file.download_url}`);
+                      setCopiedIndex(file.index);
+                      setTimeout(() => setCopiedIndex(null), 2000);
+                    }}
+                    title="Kopiuj bezpośredni link HTTP"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: copiedIndex === file.index ? 'var(--success)' : 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: '3px',
+                    }}
+                  >
+                    {copiedIndex === file.index ? <Check size={13} /> : <Link size={13} />}
+                  </button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Brak plików lub nie można odczytać listy.</div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
