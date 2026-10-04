@@ -130,6 +130,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           );
         })}
+
+        <div style={{ padding: '16px 12px 4px', fontSize: '11px', fontWeight: 600, color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+          Pobrane
+        </div>
+
+        <button
+          onClick={() => onTabChange('files')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 14px',
+            borderRadius: '8px',
+            border: 'none',
+            backgroundColor: activeTab === 'files' ? 'var(--surface-high)' : 'transparent',
+            color: activeTab === 'files' ? 'var(--text)' : 'var(--text-muted)',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            fontWeight: activeTab === 'files' ? 600 : 500,
+            textAlign: 'left',
+          }}
+          onMouseEnter={(e) => {
+            if (activeTab !== 'files') e.currentTarget.style.backgroundColor = 'var(--surface-container)';
+          }}
+          onMouseLeave={(e) => {
+            if (activeTab !== 'files') e.currentTarget.style.backgroundColor = 'transparent';
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <HardDrive size={18} color={activeTab === 'files' ? 'var(--primary)' : 'var(--text-muted)'} />
+            <span>Pliki na serwerze</span>
+          </div>
+        </button>
       </nav>
 
       {/* Footer / Settings */}

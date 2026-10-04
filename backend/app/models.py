@@ -34,6 +34,16 @@ class DownloadTask(BaseModel):
     download_url: Optional[str] = None
 
 
+class ServerFile(BaseModel):
+    name: str
+    path: str
+    size: int
+    modified_at: float
+    download_url: str
+    is_dir: bool = False
+    extension: str = ""
+
+
 class ClassifyResult(BaseModel):
     url: str
     target: TargetService

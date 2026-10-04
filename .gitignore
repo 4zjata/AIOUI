@@ -28,6 +28,7 @@ yarn-error.log*
 pnpm-debug.log*
 frontend/dist/
 frontend/.turbo/
+*.tsbuildinfo
 .cache/
 
 # OS / Editor

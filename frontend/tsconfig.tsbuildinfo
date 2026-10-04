@@ -1,1 +1,0 @@
-{"root":["./src/App.tsx","./src/main.tsx","./src/types.ts","./src/api/client.ts","./src/components/DownloadItem.tsx","./src/components/DownloadList.tsx","./src/components/FormatDrawer.tsx","./src/components/SettingsModal.tsx","./src/components/Sidebar.tsx","./src/components/Toast.tsx","./src/components/UniversalBar.tsx"],"version":"5.9.3"}

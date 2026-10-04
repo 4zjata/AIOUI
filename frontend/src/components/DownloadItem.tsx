@@ -10,7 +10,10 @@ import {
   CheckCircle, 
   AlertCircle,
   Clock,
-  Laptop
+  Laptop,
+  Download,
+  Link,
+  Check
 } from 'lucide-react';
 
 interface DownloadItemProps {
@@ -62,6 +65,7 @@ export const DownloadItem: React.FC<DownloadItemProps> = ({
   const isPaused = task.status === 'paused';
   const isCompleted = task.status === 'completed';
   const isError = task.status === 'error';
+  const [copied, setCopied] = React.useState(false);
 
   return (
     <div style={{
@@ -120,6 +124,59 @@ export const DownloadItem: React.FC<DownloadItemProps> = ({
             }}>
               <Laptop size={12} /> Zapisano lokalnie
             </span>
+          )}
+
+          {isCompleted && (
+            <>
+              <a
+                href={task.download_url || `/api/downloads/${task.id}/file`}
+                download
+                title="Pobierz plik przez HTTP"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--primary)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  borderRadius: '4px',
+                  textDecoration: 'none',
+                  transition: 'background-color 0.15s ease',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--surface-container)')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+              >
+                <Download size={15} />
+              </a>
+
+              <button
+                onClick={() => {
+                  const url = `${window.location.origin}${task.download_url || `/api/downloads/${task.id}/file`}`;
+                  navigator.clipboard.writeText(url);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                title={copied ? 'Skopiowano link!' : 'Kopiuj bezpośredni link HTTP'}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'none',
+                  border: 'none',
+                  color: copied ? 'var(--success)' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  borderRadius: '4px',
+                  transition: 'background-color 0.15s ease',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--surface-container)')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+              >
+                {copied ? <Check size={15} /> : <Link size={15} />}
+              </button>
+            </>
           )}
 
           {isDownloading && (

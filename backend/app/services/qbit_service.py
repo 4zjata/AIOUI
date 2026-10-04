@@ -173,9 +173,13 @@ class QBitService:
                 if eta and (eta < 0 or eta > 8640000):
                     eta = None
 
+                task_id = f"qbit_{t.get('hash')}"
+                content_path = t.get("content_path")
+                download_url = f"/api/downloads/{task_id}/file" if status == TaskStatus.COMPLETED else None
+
                 tasks.append(
                     DownloadTask(
-                        id=f"qbit_{t.get('hash')}",
+                        id=task_id,
                         name=t.get("name", "Torrent"),
                         source=TargetService.QBIT,
                         status=status,
@@ -185,6 +189,8 @@ class QBitService:
                         total_bytes=t.get("total_size"),
                         downloaded_bytes=t.get("completed"),
                         created_at=float(t.get("added_on", 0)) if t.get("added_on") else None,
+                        file_path=content_path,
+                        download_url=download_url,
                     )
                 )
             return tasks

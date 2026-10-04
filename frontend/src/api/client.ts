@@ -1,4 +1,4 @@
-import { AddLinkRequest, ClassifyResult, DownloadTask } from '../types';
+import { AddLinkRequest, ClassifyResult, DownloadTask, ServerFile } from '../types';
 
 const API_BASE = '/api';
 
@@ -60,6 +60,21 @@ export async function resumeTask(taskId: string): Promise<boolean> {
 
 export async function deleteTask(taskId: string, deleteFiles: boolean = false): Promise<boolean> {
   const res = await fetch(`${API_BASE}/downloads/${taskId}?delete_files=${deleteFiles}`, {
+    method: 'DELETE',
+  });
+  return res.ok;
+}
+
+export async function fetchServerFiles(): Promise<ServerFile[]> {
+  const res = await fetch(`${API_BASE}/files`);
+  if (!res.ok) {
+    throw new Error(`Błąd pobierania listy plików: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function deleteServerFile(path: string): Promise<boolean> {
+  const res = await fetch(`${API_BASE}/files?path=${encodeURIComponent(path)}`, {
     method: 'DELETE',
   });
   return res.ok;

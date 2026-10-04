@@ -24,6 +24,16 @@ export interface DownloadTask {
   download_url?: string | null;
 }
 
+export interface ServerFile {
+  name: string;
+  path: string;
+  size: number;
+  modified_at: number;
+  download_url: string;
+  is_dir: boolean;
+  extension: string;
+}
+
 export interface ClassifyResult {
   url: string;
   target: TargetService;

@@ -2,20 +2,47 @@ import os
 import json
 import asyncio
 from pathlib import Path
+from typing import List, Optional
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Query
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.models import AddLinkRequest, ClassifyResult, DownloadTask, TaskStatus
+from app.models import AddLinkRequest, ClassifyResult, DownloadTask, TaskStatus, ServerFile
 from app.classifier.router import classify_url
 from app.aggregator.engine import engine
 from app.services.ytdlp_service import ytdlp_service
 from app.services.qbit_service import qbit_service
 from app.services.jd_service import jd_service
+from app.services.file_service import file_service
+
+
+def get_media_type(filename: str) -> str:
+    ext = Path(filename).suffix.lower()
+    mapping = {
+        ".mp4": "video/mp4",
+        ".mkv": "video/x-matroska",
+        ".webm": "video/webm",
+        ".avi": "video/x-msvideo",
+        ".mov": "video/quicktime",
+        ".mp3": "audio/mpeg",
+        ".flac": "audio/flac",
+        ".m4a": "audio/mp4",
+        ".wav": "audio/wav",
+        ".ogg": "audio/ogg",
+        ".zip": "application/zip",
+        ".rar": "application/vnd.rar",
+        ".7z": "application/x-7z-compressed",
+        ".tar": "application/x-tar",
+        ".gz": "application/gzip",
+        ".iso": "application/x-iso9660-image",
+        ".pdf": "application/pdf",
+        ".torrent": "application/x-bittorrent",
+    }
+    return mapping.get(ext, "application/octet-stream")
 
 
 @asynccontextmanager
@@ -93,37 +120,103 @@ async def delete_task(task_id: str, delete_files: bool = False):
     return {"success": success}
 
 
+# File Browsing and Direct HTTP Serving Endpoints
+@app.get("/api/files", response_model=List[ServerFile])
+async def list_server_files():
+    """List all completed files stored on the server in DOWNLOAD_DIR."""
+    return file_service.list_files()
+
+
+@app.get("/api/files/download")
+async def download_server_file(path: str = Query(..., description="Relative file path")):
+    """Serve any file located in the server's download directory via HTTP."""
+    target_path = file_service.resolve_safe_path(path)
+    if not target_path or not target_path.is_file():
+        raise HTTPException(status_code=404, detail="Plik nie został znaleziony lub brak uprawnień")
+
+    filename = target_path.name
+    return FileResponse(
+        path=str(target_path),
+        filename=filename,
+        media_type=get_media_type(filename),
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Accept-Ranges": "bytes",
+        },
+    )
+
+
+@app.delete("/api/files")
+async def delete_server_file(path: str = Query(..., description="Relative file path")):
+    """Delete a file from the server's download directory."""
+    success = file_service.delete_file(path)
+    if not success:
+        raise HTTPException(status_code=400, detail="Nie udało się usunąć pliku")
+    return {"success": True}
+
+
+@app.get("/api/downloads/{task_id}/file")
 @app.get("/api/downloads/file/{task_id}")
 async def download_file_direct(task_id: str):
-    """Serve downloaded file directly to browser with proper attachment headers."""
+    """Serve completed download task file directly to browser via HTTP."""
     task = ytdlp_service.get_task(task_id)
     file_path = None
     filename = None
 
-    if task and task.file_path and os.path.exists(task.file_path):
-        file_path = task.file_path
-        filename = Path(task.file_path).name
-    else:
-        # Fallback: look for file in download_dir containing task_id
+    if task:
+        if task.file_path and os.path.exists(task.file_path):
+            file_path = task.file_path
+            filename = Path(task.file_path).name
+        elif task.status in (TaskStatus.DOWNLOADING, TaskStatus.QUEUED, TaskStatus.CHECKING):
+            raise HTTPException(status_code=425, detail="Plik jest jeszcze w trakcie pobierania lub przetwarzania")
+
+    # If not in yt-dlp, check qBittorrent completed tasks
+    if not file_path:
+        qbit_tasks = await qbit_service.get_tasks()
+        for qt in qbit_tasks:
+            if qt.id == task_id and qt.file_path and os.path.exists(qt.file_path):
+                file_path = qt.file_path
+                filename = Path(qt.file_path).name
+                break
+
+    # Fallback: look for file in download_dir matching task name or task_id
+    if not file_path:
         download_dir = Path(settings.DOWNLOAD_DIR)
-        matches = list(download_dir.glob(f"*{task_id}*"))
-        if matches and matches[0].is_file():
-            file_path = str(matches[0])
-            filename = matches[0].name
+        all_tasks = await engine.get_all_tasks()
+        target_task = next((t for t in all_tasks if t.id == task_id), None)
+        if target_task and target_task.name:
+            exact = download_dir / target_task.name
+            if exact.is_file():
+                file_path = str(exact)
+                filename = exact.name
+            elif download_dir.exists():
+                for p in download_dir.rglob("*"):
+                    if p.is_file() and p.name == target_task.name:
+                        file_path = str(p)
+                        filename = p.name
+                        break
+
+        if not file_path and download_dir.exists():
+            matches = list(download_dir.glob(f"*{task_id}*"))
+            if matches and matches[0].is_file():
+                file_path = str(matches[0])
+                filename = matches[0].name
 
     if not file_path or not os.path.exists(file_path):
-        if task and task.status in (TaskStatus.DOWNLOADING, TaskStatus.QUEUED, TaskStatus.CHECKING):
-            raise HTTPException(status_code=425, detail="Plik jest jeszcze w trakcie pobierania lub przetwarzania")
-        raise HTTPException(status_code=404, detail="Plik nie został znaleziony na serwerze")
+        raise HTTPException(status_code=404, detail="Plik wynikowy nie został odnaleziony na serwerze")
 
-    ext = Path(file_path).suffix.lower()
-    media_type = "video/mp4" if ext == ".mp4" else "audio/mpeg" if ext == ".mp3" else "application/octet-stream"
+    # If it's a directory (e.g. multi-file torrent), raise notice or point to files
+    if os.path.isdir(file_path):
+        raise HTTPException(status_code=400, detail="To zadanie jest folderem - użyj zakładki Pliki, aby pobrać poszczególne pliki")
 
     return FileResponse(
         path=file_path,
         filename=filename,
-        media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        media_type=get_media_type(filename),
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Accept-Ranges": "bytes",
+        },
     )
 
 
