@@ -14,20 +14,20 @@ export const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Set of task IDs that have already been auto-downloaded to browser
-  const autoDownloadedRef = useRef<Set<string>>(new Set());
+  // Set of task IDs that the user explicitly requested to download to their device in this session
+  const pendingDeviceTasksRef = useRef<Set<string>>(new Set());
 
-  // Watch tasks for completion of tasks with download_url and automatically trigger browser download!
+  // Watch tasks for completion ONLY for explicitly requested device downloads
   useEffect(() => {
     tasks.forEach((task) => {
       if (
         task.status === 'completed' &&
         task.download_url &&
-        !autoDownloadedRef.current.has(task.id)
+        pendingDeviceTasksRef.current.has(task.id)
       ) {
-        autoDownloadedRef.current.add(task.id);
+        pendingDeviceTasksRef.current.delete(task.id);
         
-        // Automatically trigger browser native download without requiring an extra button click!
+        // Trigger browser native download once
         const link = document.createElement('a');
         link.href = task.download_url;
         link.download = task.name;
@@ -39,7 +39,7 @@ export const App: React.FC = () => {
           id: Math.random().toString(),
           title: 'Pobieranie zakończone',
           message: `Plik "${task.name}" został automatycznie zapisany na Twoim komputerze.`,
-          target: 'ytdlp',
+          target: task.source,
           taskId: task.id,
         });
       }
@@ -92,7 +92,16 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  const handleSuccess = (target: TargetService, message: string, taskId?: string) => {
+  const handleSuccess = (
+    target: TargetService,
+    message: string,
+    taskId?: string,
+    downloadToDevice?: boolean
+  ) => {
+    if (taskId && downloadToDevice) {
+      pendingDeviceTasksRef.current.add(taskId);
+    }
+
     const titles: Record<TargetService, string> = {
       qbit: 'Dodano do qBittorrent',
       jdown: 'Dodano do JDownloader',

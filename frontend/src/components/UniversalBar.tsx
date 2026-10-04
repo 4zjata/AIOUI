@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 interface UniversalBarProps {
-  onSuccess: (target: TargetService, message: string, taskId?: string) => void;
+  onSuccess: (target: TargetService, message: string, taskId?: string, downloadToDevice?: boolean) => void;
   onError: (msg: string) => void;
 }
 
@@ -117,7 +117,7 @@ export const UniversalBar: React.FC<UniversalBarProps> = ({ onSuccess, onError }
         const msg = downloadToDevice && activeTarget === 'ytdlp'
           ? 'Pobieranie rozpoczęte • Plik zostanie automatycznie zapisany na Twoim komputerze po przetworzeniu'
           : res.message;
-        onSuccess(activeTarget, msg, res.task_id);
+        onSuccess(activeTarget, msg, res.task_id, downloadToDevice);
         setInputVal('');
         setDetectedTarget(null);
         setOverrideTarget(null);
