@@ -195,11 +195,15 @@ async def download_task_file_by_index(task_id: str, file_index: int):
                 file_path = content_path / file_name
 
         if not file_path.exists():
-            local_download_dir = Path(settings.DOWNLOAD_DIR)
-            if (local_download_dir / file_name).exists():
-                file_path = local_download_dir / file_name
-            elif (local_download_dir / Path(file_name).name).exists():
-                file_path = local_download_dir / Path(file_name).name
+            for base_dir in [Path(settings.DOWNLOAD_DIR), Path("/downloads")]:
+                if not base_dir.exists():
+                    continue
+                if (base_dir / file_name).exists():
+                    file_path = base_dir / file_name
+                    break
+                elif (base_dir / Path(file_name).name).exists():
+                    file_path = base_dir / Path(file_name).name
+                    break
 
         if not file_path.exists() or not file_path.is_file():
             raise HTTPException(status_code=404, detail="Plik nie został znaleziony na dysku")
@@ -246,21 +250,28 @@ async def download_file_direct(task_id: str):
             largest_file = max(raw_files, key=lambda f: f.get("size", 0))
             return await download_task_file_by_index(task_id, int(largest_file["index"]))
 
-    # Fallback: look for file in download_dir matching task name
+    # Fallback: look for file in download_dir or /downloads matching task name
     if not file_path:
-        download_dir = Path(settings.DOWNLOAD_DIR)
         all_tasks = await engine.get_all_tasks()
         target_task = next((t for t in all_tasks if t.id == task_id), None)
         if target_task and target_task.name:
-            exact = download_dir / target_task.name
-            if exact.is_file():
-                file_path = str(exact)
-                filename = exact.name
-            elif download_dir.exists():
-                for p in download_dir.rglob("*"):
-                    if p.is_file() and p.name == target_task.name:
-                        file_path = str(p)
-                        filename = p.name
+            for base_dir in [Path(settings.DOWNLOAD_DIR), Path("/downloads")]:
+                if not base_dir.exists():
+                    continue
+                exact = base_dir / target_task.name
+                if exact.is_file():
+                    file_path = str(exact)
+                    filename = exact.name
+                    break
+                else:
+                    found = False
+                    for p in base_dir.rglob("*"):
+                        if p.is_file() and p.name == target_task.name:
+                            file_path = str(p)
+                            filename = p.name
+                            found = True
+                            break
+                    if found:
                         break
 
     if not file_path or not os.path.exists(file_path):

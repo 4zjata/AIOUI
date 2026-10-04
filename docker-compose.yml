@@ -9,6 +9,8 @@ services:
       - "${PORT:-8000}:8000"
     env_file:
       - .env
+    environment:
+      - DOWNLOAD_DIR=/downloads
     volumes:
       - ${DOWNLOAD_DIR:-./downloads}:/downloads
     healthcheck:
