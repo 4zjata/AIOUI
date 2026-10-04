@@ -1,5 +1,6 @@
 import asyncio
 import os
+import json
 import time
 import uuid
 import logging
@@ -17,8 +18,34 @@ class YTDLPService:
     def __init__(self):
         self.download_dir = Path(settings.DOWNLOAD_DIR)
         self.download_dir.mkdir(parents=True, exist_ok=True)
+        self.cache_file = self.download_dir / ".aioui_ytdlp_tasks.json"
         self.tasks: Dict[str, DownloadTask] = {}
         self._cancel_flags: Dict[str, bool] = {}
+        self._load_cache()
+
+    def _load_cache(self):
+        """Restore previous tasks from disk cache on startup."""
+        if self.cache_file.exists():
+            try:
+                with open(self.cache_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    for item in data:
+                        task = DownloadTask(**item)
+                        # Verify file still exists on disk if completed
+                        if task.file_path and not os.path.exists(task.file_path):
+                            task.status = TaskStatus.ERROR
+                            task.error_message = "Plik został usunięty z dysku"
+                        self.tasks[task.id] = task
+            except Exception as e:
+                logger.warning(f"Could not load ytdlp tasks cache: {e}")
+
+    def _save_cache(self):
+        """Persist current tasks to disk cache."""
+        try:
+            with open(self.cache_file, "w", encoding="utf-8") as f:
+                json.dump([t.model_dump() for t in self.tasks.values()], f, indent=2)
+        except Exception as e:
+            logger.warning(f"Could not save ytdlp tasks cache: {e}")
 
     def get_tasks(self) -> List[DownloadTask]:
         return list(self.tasks.values())
@@ -46,6 +73,7 @@ class YTDLPService:
         )
         self.tasks[task_id] = task
         self._cancel_flags[task_id] = False
+        self._save_cache()
 
         # Start download in background
         asyncio.create_task(
@@ -85,19 +113,15 @@ class YTDLPService:
                     if total and total > 0:
                         task.progress = round((downloaded / total) * 100.0, 1)
 
-                    # Extract file title if available
                     info_dict = d.get("info_dict", {})
                     if info_dict.get("title") and task.name.startswith("Inicjowanie:"):
                         task.name = info_dict["title"]
 
                 elif d["status"] == "finished":
-                    task.progress = 100.0
+                    # Download finished for stream, awaiting postprocessing/muxing
+                    task.progress = 99.0
                     task.speed = 0
                     task.eta = None
-                    final_path = d.get("filename")
-                    if final_path:
-                        task.file_path = final_path
-                        task.name = Path(final_path).name
 
             # Configure yt-dlp format options
             ydl_opts = {
@@ -139,28 +163,41 @@ class YTDLPService:
                     info = ydl.extract_info(url, download=True)
                     if info and info.get("title"):
                         task.name = info["title"]
-                    task.status = TaskStatus.COMPLETED
-                    task.progress = 100.0
 
-                    # Find actual file produced
-                    if not task.file_path and info:
-                        requested = info.get("requested_downloads")
-                        if requested and len(requested) > 0 and requested[0].get("filepath"):
-                            task.file_path = requested[0]["filepath"]
+                    final_file = None
+                    requested = info.get("requested_downloads") if info else None
+                    if requested and len(requested) > 0 and requested[0].get("filepath"):
+                        final_file = requested[0]["filepath"]
+
+                    if not final_file and info:
+                        expected = ydl.prepare_filename(info)
+                        if format_type == "audio":
+                            expected = str(Path(expected).with_suffix(".mp3"))
+                        if os.path.exists(expected):
+                            final_file = expected
                         else:
-                            expected = ydl.prepare_filename(info)
-                            if format_type == "audio":
-                                expected = str(Path(expected).with_suffix(".mp3"))
-                            if os.path.exists(expected):
-                                task.file_path = expected
+                            mp4_cand = str(Path(expected).with_suffix(".mp4"))
+                            if os.path.exists(mp4_cand):
+                                final_file = mp4_cand
 
-                    if task.file_path and download_to_device:
-                        task.download_url = f"/api/downloads/file/{task_id}"
+                    if final_file and os.path.exists(final_file):
+                        task.file_path = str(final_file)
+                        task.name = Path(final_file).name
+                        task.status = TaskStatus.COMPLETED
+                        task.progress = 100.0
+                        if download_to_device:
+                            task.download_url = f"/api/downloads/file/{task_id}"
+                    else:
+                        task.status = TaskStatus.COMPLETED
+                        task.progress = 100.0
 
             except Exception as e:
                 logger.error(f"yt-dlp download failed for {url}: {e}")
                 task.status = TaskStatus.ERROR
                 task.error_message = str(e)
+
+            finally:
+                self._save_cache()
 
         await loop.run_in_executor(None, _run)
 
@@ -170,6 +207,7 @@ class YTDLPService:
             if task_id in self.tasks:
                 self.tasks[task_id].status = TaskStatus.ERROR
                 self.tasks[task_id].error_message = "Anulowano przez użytkownika"
+                self._save_cache()
             return True
         return False
 
@@ -181,6 +219,7 @@ class YTDLPService:
                 os.remove(task.file_path)
             except Exception as e:
                 logger.warning(f"Could not delete file {task.file_path}: {e}")
+        self._save_cache()
         return True
 
 

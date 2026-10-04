@@ -24,10 +24,26 @@ export const UniversalBar: React.FC<UniversalBarProps> = ({ onSuccess, onError }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
-  // yt-dlp specific options
+  // yt-dlp specific options with persistent localStorage memory
   const [formatType, setFormatType] = useState<'video' | 'audio'>('video');
   const [quality, setQuality] = useState<'best' | '1080p' | '720p' | '480p' | '320k'>('best');
-  const [downloadToDevice, setDownloadToDevice] = useState(false);
+  const [downloadToDevice, setDownloadToDevice] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('aioui_download_to_device');
+      return saved !== null ? JSON.parse(saved) : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const handleDownloadToDeviceChange = (val: boolean) => {
+    setDownloadToDevice(val);
+    try {
+      localStorage.setItem('aioui_download_to_device', JSON.stringify(val));
+    } catch {
+      // ignore
+    }
+  };
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -72,9 +88,7 @@ export const UniversalBar: React.FC<UniversalBarProps> = ({ onSuccess, onError }
         const res = await classifyUrl(trimmed);
         setDetectedTarget(res.target);
       } catch (err) {
-        // Fallback default
         setDetectedTarget('jdown');
-      } finally {
       }
     }, 200);
 
@@ -100,8 +114,10 @@ export const UniversalBar: React.FC<UniversalBarProps> = ({ onSuccess, onError }
       });
 
       if (res.success) {
-        onSuccess(activeTarget, res.message, res.task_id);
-        // Clear input bar on success
+        const msg = downloadToDevice && activeTarget === 'ytdlp'
+          ? 'Pobieranie rozpoczęte • Plik zostanie automatycznie zapisany na Twoim komputerze po przetworzeniu'
+          : res.message;
+        onSuccess(activeTarget, msg, res.task_id);
         setInputVal('');
         setDetectedTarget(null);
         setOverrideTarget(null);
@@ -306,7 +322,7 @@ export const UniversalBar: React.FC<UniversalBarProps> = ({ onSuccess, onError }
           quality={quality}
           onQualityChange={setQuality}
           downloadToDevice={downloadToDevice}
-          onDownloadToDeviceChange={setDownloadToDevice}
+          onDownloadToDeviceChange={handleDownloadToDeviceChange}
         />
       )}
     </div>

@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.models import AddLinkRequest, ClassifyResult, DownloadTask
+from app.models import AddLinkRequest, ClassifyResult, DownloadTask, TaskStatus
 from app.classifier.router import classify_url
 from app.aggregator.engine import engine
 from app.services.ytdlp_service import ytdlp_service
@@ -20,16 +20,13 @@ from app.services.jd_service import jd_service
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: start background aggregation
     await engine.start()
     yield
-    # Shutdown: stop polling
     await engine.stop()
 
 
 app = FastAPI(title="AIOUI API", version="1.0.0", lifespan=lifespan)
 
-# Allow CORS for development (Vite running on port 5173)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -41,7 +38,6 @@ app.add_middleware(
 
 @app.get("/api/status")
 async def get_services_status():
-    """Check connectivity to download services."""
     return {
         "status": "ok",
         "qbit_url": settings.QBIT_URL,
@@ -99,26 +95,44 @@ async def delete_task(task_id: str, delete_files: bool = False):
 
 @app.get("/api/downloads/file/{task_id}")
 async def download_file_direct(task_id: str):
-    """Serve downloaded file directly to the browser when download_to_device is requested."""
+    """Serve downloaded file directly to browser with proper attachment headers."""
     task = ytdlp_service.get_task(task_id)
-    if not task or not task.file_path or not os.path.exists(task.file_path):
-        raise HTTPException(status_code=404, detail="File not found or still downloading")
+    file_path = None
+    filename = None
+
+    if task and task.file_path and os.path.exists(task.file_path):
+        file_path = task.file_path
+        filename = Path(task.file_path).name
+    else:
+        # Fallback: look for file in download_dir containing task_id
+        download_dir = Path(settings.DOWNLOAD_DIR)
+        matches = list(download_dir.glob(f"*{task_id}*"))
+        if matches and matches[0].is_file():
+            file_path = str(matches[0])
+            filename = matches[0].name
+
+    if not file_path or not os.path.exists(file_path):
+        if task and task.status in (TaskStatus.DOWNLOADING, TaskStatus.QUEUED, TaskStatus.CHECKING):
+            raise HTTPException(status_code=425, detail="Plik jest jeszcze w trakcie pobierania lub przetwarzania")
+        raise HTTPException(status_code=404, detail="Plik nie został znaleziony na serwerze")
+
+    ext = Path(file_path).suffix.lower()
+    media_type = "video/mp4" if ext == ".mp4" else "audio/mpeg" if ext == ".mp3" else "application/octet-stream"
 
     return FileResponse(
-        path=task.file_path,
-        filename=Path(task.file_path).name,
-        media_type="application/octet-stream",
+        path=file_path,
+        filename=filename,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
 @app.get("/api/downloads/stream")
 async def stream_downloads(request: Request):
-    """Server-Sent Events (SSE) streaming download progress."""
     queue = engine.subscribe()
 
     async def event_generator():
         try:
-            # Send initial state immediately
             initial_tasks = await engine.get_all_tasks()
             yield f"data: {json.dumps([t.model_dump() for t in initial_tasks])}\n\n"
 
@@ -143,7 +157,6 @@ async def stream_downloads(request: Request):
     )
 
 
-# Serve built frontend in production if dist directory exists
 frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
 if frontend_dist.exists() and (frontend_dist / "index.html").exists():
     app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")

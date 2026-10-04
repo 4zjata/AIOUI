@@ -7,10 +7,10 @@ import {
   Pause, 
   Play, 
   Trash2, 
-  Download as DownloadIcon,
   CheckCircle, 
   AlertCircle,
-  Clock
+  Clock,
+  Laptop
 } from 'lucide-react';
 
 interface DownloadItemProps {
@@ -74,7 +74,7 @@ export const DownloadItem: React.FC<DownloadItemProps> = ({
       gap: '10px',
       transition: 'border-color 0.15s ease',
     }}>
-      {/* Top Row: Service Badge, Name, Status & Action Buttons */}
+      {/* Top Row: Service Badge, Name, Status & Action Controls */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
           <span style={{
@@ -107,28 +107,19 @@ export const DownloadItem: React.FC<DownloadItemProps> = ({
 
         {/* Action Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-          {/* Direct Browser Download for yt-dlp file */}
-          {task.download_url && (
-            <a
-              href={task.download_url}
-              download
-              title="Pobierz plik na komputer"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '4px 8px',
-                borderRadius: '6px',
-                backgroundColor: 'var(--primary-container)',
-                color: 'var(--primary)',
-                textDecoration: 'none',
-                fontSize: '11px',
-                fontWeight: 600,
-              }}
-            >
-              <DownloadIcon size={13} />
-              <span>Zapisz</span>
-            </a>
+          {task.download_url && isCompleted && (
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '11px',
+              padding: '2px 6px',
+              borderRadius: '4px',
+              backgroundColor: 'var(--surface-high)',
+              color: 'var(--primary)',
+            }}>
+              <Laptop size={12} /> Zapisano lokalnie
+            </span>
           )}
 
           {isDownloading && (

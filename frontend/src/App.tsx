@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DownloadTask, TargetService, ToastNotification } from './types';
 import { fetchDownloads, pauseTask, resumeTask, deleteTask } from './api/client';
 import { Sidebar } from './components/Sidebar';
@@ -13,6 +13,38 @@ export const App: React.FC = () => {
   const [toast, setToast] = useState<ToastNotification | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Set of task IDs that have already been auto-downloaded to browser
+  const autoDownloadedRef = useRef<Set<string>>(new Set());
+
+  // Watch tasks for completion of tasks with download_url and automatically trigger browser download!
+  useEffect(() => {
+    tasks.forEach((task) => {
+      if (
+        task.status === 'completed' &&
+        task.download_url &&
+        !autoDownloadedRef.current.has(task.id)
+      ) {
+        autoDownloadedRef.current.add(task.id);
+        
+        // Automatically trigger browser native download without requiring an extra button click!
+        const link = document.createElement('a');
+        link.href = task.download_url;
+        link.download = task.name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        setToast({
+          id: Math.random().toString(),
+          title: 'Pobieranie zakończone',
+          message: `Plik "${task.name}" został automatycznie zapisany na Twoim komputerze.`,
+          target: 'ytdlp',
+          taskId: task.id,
+        });
+      }
+    });
+  }, [tasks]);
 
   // SSE connection for real-time live downloads stream
   useEffect(() => {
@@ -32,14 +64,13 @@ export const App: React.FC = () => {
         };
 
         eventSource.onerror = () => {
-          // If SSE fails or disconnects, fallback to interval polling
           if (eventSource) eventSource.close();
           if (!pollInterval) {
-            pollInterval = setInterval(loadTasks, 2500);
+            pollInterval = setInterval(loadTasks, 2000);
           }
         };
       } catch (err) {
-        pollInterval = setInterval(loadTasks, 2500);
+        pollInterval = setInterval(loadTasks, 2000);
       }
     };
 
@@ -78,10 +109,7 @@ export const App: React.FC = () => {
   };
 
   const handleToastClick = () => {
-    if (toast?.target) {
-      // Navigate to all or the specific service tab
-      setActiveTab('all');
-    }
+    setActiveTab('all');
     setToast(null);
   };
 
