@@ -44,21 +44,20 @@ class QBitService:
             if now - self._last_warn_time > 60:
                 remaining = int(self._ban_until - now)
                 logger.warning(
-                    f"qBittorrent: IP jest tymczasowo zablokowany przez serwer. Wstrzymano próby na jeszcze {remaining}s."
+                    f"qBittorrent: IP jest tymczasowo wstrzymany. Pozostało {remaining}s."
                 )
                 self._last_warn_time = now
             return True
 
-        # Exponential backoff between failed login attempts
         if not self._authenticated and self._login_fail_count > 0:
-            backoff_delay = min(30 * (2 ** (self._login_fail_count - 1)), 300)
+            backoff_delay = min(20 * (2 ** (self._login_fail_count - 1)), 300)
             if now - self._last_login_attempt < backoff_delay:
                 return True
 
         return False
 
     async def login(self) -> bool:
-        """Authenticate with qBittorrent WebAPI v2 with ban protection."""
+        """Authenticate with qBittorrent WebAPI v2 (supports both v4 200 OK and v5 204 No Content)."""
         if self.is_banned_or_backing_off():
             return False
 
@@ -77,16 +76,16 @@ class QBitService:
 
             # Check for IP Ban response from qBittorrent
             if "banned" in res.text.lower() or "too many failed" in res.text.lower():
-                # qBittorrent bans for 3600s (1h) by default; back off for 15 minutes before re-checking
                 self._ban_until = time.time() + 900
                 self._authenticated = False
                 logger.error(
                     f"qBittorrent: Twój adres IP został zablokowany przez qBittorrent z powodu błędnych logowań. "
-                    f"Wstrzymano zapytania na 15 minut, aby blokada mogła wygasnąć (lub zrestartuj kontener qBittorrent na serwerze)."
+                    f"Wstrzymano zapytania na 15 minut."
                 )
                 return False
 
-            if res.status_code == 200 and "Ok." in res.text:
+            # In qBittorrent 5.x, login returns 204 No Content. In 4.x it returns 200 with 'Ok.'
+            if res.status_code == 204 or (res.status_code == 200 and "Ok." in res.text):
                 self._authenticated = True
                 self._login_fail_count = 0
                 self._ban_until = 0.0
@@ -112,7 +111,7 @@ class QBitService:
         client = await self._get_client()
         try:
             res = await client.post("/api/v2/torrents/add", data={"urls": url})
-            if res.status_code == 403:
+            if res.status_code in (401, 403):
                 self._authenticated = False
                 if await self.login():
                     res = await client.post("/api/v2/torrents/add", data={"urls": url})
@@ -130,7 +129,7 @@ class QBitService:
         try:
             files = {"torrents": (filename, file_bytes, "application/x-bittorrent")}
             res = await client.post("/api/v2/torrents/add", files=files)
-            if res.status_code == 403:
+            if res.status_code in (401, 403):
                 self._authenticated = False
                 if await self.login():
                     res = await client.post("/api/v2/torrents/add", files=files)
@@ -140,14 +139,7 @@ class QBitService:
             return False
 
     async def get_tasks(self) -> List[DownloadTask]:
-        """Fetch all torrents and map to DownloadTask without spamming when unauthenticated."""
-        if self.is_banned_or_backing_off():
-            return []
-
-        if not self._authenticated:
-            if not await self.login():
-                return []
-
+        """Fetch all torrents and map to DownloadTask."""
         client = await self._get_client()
         try:
             res = await client.get("/api/v2/torrents/info")
