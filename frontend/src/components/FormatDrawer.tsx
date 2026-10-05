@@ -40,7 +40,9 @@ export const FormatDrawer: React.FC<FormatDrawerProps> = ({
           {thumbnailUrl && (
             <img 
               src={thumbnailUrl} 
-              alt="Thumbnail" 
+              alt={videoTitle || "Miniatura wideo"}
+              loading="lazy"
+              decoding="async"
               style={{ width: '64px', height: '36px', borderRadius: '4px', objectFit: 'cover' }} 
             />
           )}
@@ -54,15 +56,20 @@ export const FormatDrawer: React.FC<FormatDrawerProps> = ({
         {/* Format & Quality Pickers */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
           {/* Format Segmented Button */}
-          <div style={{
-            display: 'inline-flex',
-            backgroundColor: 'var(--surface-high)',
-            borderRadius: '6px',
-            padding: '2px',
-            border: '1px solid var(--outline-subtle)',
-          }}>
+          <div
+            role="group"
+            aria-label="Format pobierania"
+            style={{
+              display: 'inline-flex',
+              backgroundColor: 'var(--surface-high)',
+              borderRadius: '6px',
+              padding: '2px',
+              border: '1px solid var(--outline-subtle)',
+            }}
+          >
             <button
               type="button"
+              aria-pressed={formatType === 'video'}
               onClick={() => {
                 onFormatChange('video');
                 if (quality === '320k') onQualityChange('best');
@@ -88,6 +95,7 @@ export const FormatDrawer: React.FC<FormatDrawerProps> = ({
 
             <button
               type="button"
+              aria-pressed={formatType === 'audio'}
               onClick={() => {
                 onFormatChange('audio');
                 onQualityChange('320k');
@@ -114,8 +122,9 @@ export const FormatDrawer: React.FC<FormatDrawerProps> = ({
 
           {/* Quality Select */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Jakość:</span>
+            <label htmlFor="quality-select" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Jakość:</label>
             <select
+              id="quality-select"
               value={quality}
               onChange={(e) => onQualityChange(e.target.value)}
               style={{

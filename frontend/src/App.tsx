@@ -6,12 +6,14 @@ import { UniversalBar } from './components/UniversalBar';
 import { DownloadList } from './components/DownloadList';
 import { Toast } from './components/Toast';
 import { SettingsModal } from './components/SettingsModal';
+import { Menu, HardDrive, Settings as SettingsIcon } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('all');
   const [tasks, setTasks] = useState<DownloadTask[]>([]);
   const [toast, setToast] = useState<ToastNotification | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Set of task IDs that the user explicitly requested to download to their device in this session
@@ -141,23 +143,78 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--bg)' }}>
-      {/* Sidebar */}
+    <div className="app-layout">
+      {/* Mobile Top Header (visible on screens <= 768px) */}
+      <header className="mobile-header">
+        <button
+          type="button"
+          onClick={() => setIsMobileSidebarOpen(true)}
+          aria-label="Otwórz menu boczne"
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--text)',
+            cursor: 'pointer',
+            padding: '6px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: '6px',
+          }}
+        >
+          <Menu size={22} />
+        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{
+            width: '26px',
+            height: '26px',
+            borderRadius: '6px',
+            backgroundColor: 'var(--primary-container)',
+            color: 'var(--primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            <HardDrive size={15} />
+          </div>
+          <span style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text)' }}>
+            AIOUI
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setIsSettingsOpen(true)}
+          aria-label="Ustawienia usług"
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            padding: '6px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: '6px',
+          }}
+        >
+          <SettingsIcon size={20} />
+        </button>
+      </header>
+
+      {/* Sidebar (Desktop fixed sidebar / Mobile slide-out drawer) */}
       <Sidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
         tasks={tasks}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        isOpenMobile={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
 
       {/* Main Content Area */}
-      <main style={{
-        flex: 1,
-        padding: '36px 44px',
-        overflowY: 'auto',
-        maxWidth: '1200px',
-        margin: '0 auto',
-      }}>
+      <main className="main-content">
         {/* Universal Input Bar */}
         <UniversalBar
           onSuccess={handleSuccess}
@@ -166,22 +223,26 @@ export const App: React.FC = () => {
 
         {/* Global Error Banner if any */}
         {errorMessage && (
-          <div style={{
-            marginBottom: '16px',
-            padding: '10px 16px',
-            backgroundColor: 'var(--error-bg)',
-            color: 'var(--error)',
-            borderRadius: '8px',
-            border: '1px solid var(--error)',
-            fontSize: '13px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}>
+          <div
+            role="alert"
+            style={{
+              marginBottom: '16px',
+              padding: '10px 16px',
+              backgroundColor: 'var(--error-bg)',
+              color: 'var(--error)',
+              borderRadius: '8px',
+              border: '1px solid var(--error)',
+              fontSize: '13px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
             <span>{errorMessage}</span>
             <button
               onClick={() => setErrorMessage(null)}
-              style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 600 }}
+              aria-label="Zamknij komunikat o błędzie"
+              style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 600, padding: '2px 6px' }}
             >
               ✕
             </button>

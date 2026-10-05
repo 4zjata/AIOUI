@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { fetchStatus } from '../api/client';
 import { X, CheckCircle2, Server, ShieldCheck } from 'lucide-react';
 
@@ -9,57 +9,72 @@ interface SettingsModalProps {
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [status, setStatus] = useState<any>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
     if (isOpen) {
       fetchStatus().then(setStatus);
+      if (!dialog.open) {
+        dialog.showModal();
+      }
+    } else {
+      if (dialog.open) {
+        dialog.close();
+      }
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.75)',
-      backdropFilter: 'blur(3px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000,
-    }}>
-      <div style={{
-        backgroundColor: 'var(--surface)',
-        borderRadius: '14px',
-        border: '1px solid var(--outline)',
-        width: '480px',
-        maxWidth: '90%',
-        padding: '24px',
-        boxShadow: '0 16px 40px rgba(0, 0, 0, 0.8)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '20px',
-      }}>
+    <dialog
+      ref={dialogRef}
+      onCancel={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
+      onClick={(e) => {
+        // Native Light-Dismiss: click on backdrop outside dialog content
+        if (e.target === dialogRef.current) {
+          onClose();
+        }
+      }}
+      aria-labelledby="settings-dialog-title"
+    >
+      <div
+        className="modal-dialog-card"
+        style={{
+          backgroundColor: 'var(--surface)',
+          borderRadius: '14px',
+          border: '1px solid var(--outline)',
+          width: '480px',
+          maxWidth: '90vw',
+          padding: '24px',
+          boxShadow: '0 16px 40px rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '20px',
+        }}
+      >
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Server size={20} color="var(--primary)" />
-            <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>
+            <h3 id="settings-dialog-title" style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>
               Status usług pobierania
             </h3>
           </div>
           <button
             onClick={onClose}
+            aria-label="Zamknij okno"
             style={{
               background: 'none',
               border: 'none',
               color: 'var(--text-muted)',
               cursor: 'pointer',
               padding: '4px',
+              borderRadius: '4px',
             }}
           >
             <X size={18} />
@@ -82,7 +97,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 qBittorrent WebAPI
               </div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                {status?.qbit_url || 'https://localhost:8080'}
+                {status?.qbit_url || 'http://localhost:8080'}
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--success)', fontSize: '12px' }}>
@@ -104,7 +119,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 MyJDownloader API
               </div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                {status?.myjd_email || 'admin@example.com'} (JDownloader@Docker)
+                {status?.myjd_email || 'Skonfigurowano'} (JDownloader@Docker)
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--success)', fontSize: '12px' }}>
@@ -153,6 +168,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         {/* Close Button */}
         <button
           onClick={onClose}
+          type="button"
           style={{
             padding: '10px',
             borderRadius: '8px',
@@ -167,6 +183,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           Zamknij
         </button>
       </div>
-    </div>
+    </dialog>
   );
 };

@@ -46,11 +46,35 @@ export const UniversalBar: React.FC<UniversalBarProps> = ({ onSuccess, onError }
   };
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const overrideMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close override menu on click outside or Escape
+  useEffect(() => {
+    if (!showOverrideMenu) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (overrideMenuRef.current && !overrideMenuRef.current.contains(e.target as Node)) {
+        setShowOverrideMenu(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowOverrideMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showOverrideMenu]);
 
   // Global hotkey '/' to focus search bar
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === '/' && document.activeElement !== inputRef.current) {
+      const activeEl = document.activeElement as HTMLElement | null;
+      const isInputActive = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
+      if (e.key === '/' && !isInputActive) {
         e.preventDefault();
         inputRef.current?.focus();
       }
@@ -59,7 +83,7 @@ export const UniversalBar: React.FC<UniversalBarProps> = ({ onSuccess, onError }
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Debounced auto-classification
+  // Debounced auto-classification with AbortController
   useEffect(() => {
     const trimmed = inputVal.trim();
     if (!trimmed) {
@@ -82,23 +106,34 @@ export const UniversalBar: React.FC<UniversalBarProps> = ({ onSuccess, onError }
       return;
     }
 
-    // Query backend classifier
+    // Query backend classifier with cancellation signal
+    const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
-        const res = await classifyUrl(trimmed);
+        const res = await classifyUrl(trimmed, controller.signal);
         setDetectedTarget(res.target);
-      } catch (err) {
-        setDetectedTarget('jdown');
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          setDetectedTarget('jdown');
+        }
       }
     }, 200);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [inputVal]);
 
   const activeTarget: TargetService = overrideTarget || detectedTarget || 'jdown';
 
   const handleSubmit = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
+    if (e) {
+      e.preventDefault();
+      // IME composition safety check
+      const nativeEvent = e.nativeEvent as KeyboardEvent;
+      if (nativeEvent && nativeEvent.isComposing) return;
+    }
     const trimmed = inputVal.trim();
     if (!trimmed || isSubmitting) return;
 
@@ -178,6 +213,7 @@ export const UniversalBar: React.FC<UniversalBarProps> = ({ onSuccess, onError }
     >
       <form 
         onSubmit={handleSubmit}
+        className="universal-input-form"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -190,14 +226,15 @@ export const UniversalBar: React.FC<UniversalBarProps> = ({ onSuccess, onError }
           position: 'relative',
         }}
       >
-        <LinkIcon size={18} color="var(--text-subtle)" style={{ marginRight: '12px', flexShrink: 0 }} />
+        <LinkIcon size={18} color="var(--text-subtle)" style={{ marginRight: '10px', flexShrink: 0 }} />
 
         <input
           ref={inputRef}
           type="text"
           value={inputVal}
           onChange={(e) => setInputVal(e.target.value)}
-          placeholder={isDragging ? 'Upuść plik .torrent tutaj...' : 'Wklej link (magnet, wideo, hosting) lub upuść plik .torrent (Naciśnij /)...'}
+          aria-label="Wprowadź link do pobrania lub upuść plik torrent"
+          placeholder={isDragging ? 'Upuść plik .torrent tutaj...' : 'Wklej link (magnet, wideo, DDL) lub plik...'}
           style={{
             flex: 1,
             backgroundColor: 'transparent',
@@ -205,14 +242,18 @@ export const UniversalBar: React.FC<UniversalBarProps> = ({ onSuccess, onError }
             color: 'var(--text)',
             outline: 'none',
             fontSize: '14px',
+            minWidth: 0,
           }}
         />
 
         {/* Target Service Badge & Override Dropdown */}
         {inputVal.trim() && (
-          <div style={{ position: 'relative', marginRight: '8px' }}>
+          <div ref={overrideMenuRef} style={{ position: 'relative', marginRight: '8px' }}>
             <button
               type="button"
+              aria-haspopup="menu"
+              aria-expanded={showOverrideMenu}
+              aria-label={`Docelowy silnik: ${badge.label}. Kliknij, aby zmienić.`}
               onClick={() => setShowOverrideMenu(!showOverrideMenu)}
               style={{
                 display: 'flex',
@@ -235,21 +276,24 @@ export const UniversalBar: React.FC<UniversalBarProps> = ({ onSuccess, onError }
 
             {/* Dropdown Menu */}
             {showOverrideMenu && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                right: 0,
-                marginTop: '6px',
-                backgroundColor: 'var(--surface-container)',
-                borderRadius: '8px',
-                border: '1px solid var(--outline)',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-                zIndex: 50,
-                padding: '4px',
-                display: 'flex',
-                flexDirection: 'column',
-                minWidth: '150px',
-              }}>
+              <div
+                role="menu"
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: '6px',
+                  backgroundColor: 'var(--surface-container)',
+                  borderRadius: '8px',
+                  border: '1px solid var(--outline)',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                  zIndex: 50,
+                  padding: '4px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  minWidth: '150px',
+                }}
+              >
                 <div style={{ padding: '4px 8px', fontSize: '10px', color: 'var(--text-subtle)', fontWeight: 600, textTransform: 'uppercase' }}>
                   Wymuś klienta:
                 </div>
@@ -263,6 +307,7 @@ export const UniversalBar: React.FC<UniversalBarProps> = ({ onSuccess, onError }
                     <button
                       key={item.id}
                       type="button"
+                      role="menuitem"
                       onClick={() => {
                         setOverrideTarget(item.id as TargetService);
                         setShowOverrideMenu(false);
@@ -294,6 +339,7 @@ export const UniversalBar: React.FC<UniversalBarProps> = ({ onSuccess, onError }
         {/* Submit Action Button */}
         <button
           type="submit"
+          aria-label="Rozpocznij pobieranie"
           disabled={!inputVal.trim() || isSubmitting}
           style={{
             display: 'flex',

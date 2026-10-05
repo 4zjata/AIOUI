@@ -92,16 +92,19 @@ export const DownloadItem: React.FC<DownloadItemProps> = ({
   };
 
   return (
-    <div style={{
-      backgroundColor: 'var(--surface)',
-      borderRadius: '10px',
-      border: '1px solid var(--outline-subtle)',
-      padding: '14px 18px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '10px',
-      transition: 'border-color 0.15s ease',
-    }}>
+    <div
+      className="download-item-card"
+      style={{
+        backgroundColor: 'var(--surface)',
+        borderRadius: '10px',
+        border: '1px solid var(--outline-subtle)',
+        padding: '14px 18px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px',
+        transition: 'border-color 0.15s ease',
+      }}
+    >
       {/* Top Row: Service Badge, Name, Status & Action Controls */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
@@ -154,6 +157,9 @@ export const DownloadItem: React.FC<DownloadItemProps> = ({
             <button
               onClick={toggleFiles}
               title="Pokaż listę plików zadania"
+              aria-label={`Pokaż listę ${task.files_count} plików zadania`}
+              aria-expanded={showFiles}
+              aria-controls={`task-files-${task.id}`}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -180,6 +186,7 @@ export const DownloadItem: React.FC<DownloadItemProps> = ({
                 href={task.download_url || `/api/downloads/${task.id}/file`}
                 download
                 title="Pobierz plik przez HTTP"
+                aria-label={`Pobierz plik ${task.name} przez HTTP`}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -207,6 +214,7 @@ export const DownloadItem: React.FC<DownloadItemProps> = ({
                   setTimeout(() => setCopied(false), 2000);
                 }}
                 title={copied ? 'Skopiowano link!' : 'Kopiuj bezpośredni link HTTP'}
+                aria-label="Kopiuj bezpośredni link HTTP"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -231,6 +239,7 @@ export const DownloadItem: React.FC<DownloadItemProps> = ({
             <button
               onClick={() => onPause(task.id)}
               title="Wstrzymaj"
+              aria-label={`Wstrzymaj zadanie ${task.name}`}
               style={{
                 background: 'none',
                 border: 'none',
@@ -248,6 +257,7 @@ export const DownloadItem: React.FC<DownloadItemProps> = ({
             <button
               onClick={() => onResume(task.id)}
               title="Wznów"
+              aria-label={`Wznów zadanie ${task.name}`}
               style={{
                 background: 'none',
                 border: 'none',
@@ -264,6 +274,7 @@ export const DownloadItem: React.FC<DownloadItemProps> = ({
           <button
             onClick={() => onDelete(task.id)}
             title="Usuń"
+            aria-label={`Usuń zadanie ${task.name}`}
             style={{
               background: 'none',
               border: 'none',
@@ -281,13 +292,20 @@ export const DownloadItem: React.FC<DownloadItemProps> = ({
       </div>
 
       {/* Progress Bar */}
-      <div style={{
-        width: '100%',
-        height: '6px',
-        backgroundColor: 'var(--surface-high)',
-        borderRadius: '3px',
-        overflow: 'hidden',
-      }}>
+      <div
+        role="progressbar"
+        aria-valuenow={Math.round(task.progress)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`Postęp zadania: ${task.name}`}
+        style={{
+          width: '100%',
+          height: '6px',
+          backgroundColor: 'var(--surface-high)',
+          borderRadius: '3px',
+          overflow: 'hidden',
+        }}
+      >
         <div style={{
           width: `${task.progress}%`,
           height: '100%',
@@ -305,6 +323,8 @@ export const DownloadItem: React.FC<DownloadItemProps> = ({
         fontSize: '11px',
         color: 'var(--text-muted)',
         fontFamily: 'var(--font-mono)',
+        flexWrap: 'wrap',
+        gap: '8px',
       }}>
         {/* Progress & Speed */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -349,12 +369,14 @@ export const DownloadItem: React.FC<DownloadItemProps> = ({
 
       {/* Expanded Task Files List */}
       {showFiles && (
-        <div style={{
-          marginTop: '6px',
-          padding: '10px 14px',
-          backgroundColor: 'var(--surface-container)',
-          borderRadius: '8px',
-          border: '1px solid var(--outline-subtle)',
+        <div
+          id={`task-files-${task.id}`}
+          style={{
+            marginTop: '6px',
+            padding: '10px 14px',
+            backgroundColor: 'var(--surface-container)',
+            borderRadius: '8px',
+            border: '1px solid var(--outline-subtle)',
           display: 'flex',
           flexDirection: 'column',
           gap: '8px',

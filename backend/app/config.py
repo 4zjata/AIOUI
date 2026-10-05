@@ -8,13 +8,13 @@ class Settings(BaseSettings):
     PORT: int = 8000
 
     # qBittorrent Configuration
-    QBIT_URL: str = "https://localhost:8080"
-    QBIT_USER: str = "Voidy"
-    QBIT_PASSWORD: str = "adminpassword"
+    QBIT_URL: str = "http://localhost:8080"
+    QBIT_USER: str = "admin"
+    QBIT_PASSWORD: str = "adminadmin"
 
     # MyJDownloader Configuration
-    MYJD_EMAIL: str = "admin@example.com"
-    MYJD_PASSWORD: str = "adminpassword"
+    MYJD_EMAIL: Optional[str] = None
+    MYJD_PASSWORD: Optional[str] = None
     MYJD_DEVICE_NAME: Optional[str] = None
 
     # yt-dlp & Downloads Configuration

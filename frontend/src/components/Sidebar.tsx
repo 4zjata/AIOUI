@@ -5,9 +5,10 @@ import {
   Anchor, 
   Package, 
   Film, 
-  Settings as SettingsIcon,
-  HardDrive,
-  CheckCircle2
+  Settings as SettingsIcon, 
+  HardDrive, 
+  CheckCircle2,
+  X
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -15,6 +16,8 @@ interface SidebarProps {
   onTabChange: (tab: string) => void;
   tasks: DownloadTask[];
   onOpenSettings: () => void;
+  isOpenMobile?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -22,6 +25,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onTabChange,
   tasks,
   onOpenSettings,
+  isOpenMobile,
+  onCloseMobile,
 }) => {
   const countActive = (service?: TargetService) => {
     return tasks.filter((t) => {
@@ -42,45 +47,77 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'ytdlp', label: 'yt-dlp Media', icon: Film, count: countActive('ytdlp'), color: 'var(--ytdlp-accent)' },
   ];
 
+  const handleNavClick = (tabId: string) => {
+    onTabChange(tabId);
+    if (onCloseMobile) onCloseMobile();
+  };
+
+  const handleSettingsClick = () => {
+    onOpenSettings();
+    if (onCloseMobile) onCloseMobile();
+  };
+
   return (
-    <aside style={{
-      width: '260px',
-      height: '100vh',
-      backgroundColor: 'var(--surface)',
-      borderRight: '1px solid var(--outline-subtle)',
-      display: 'flex',
-      flexDirection: 'column',
-      flexShrink: 0,
-    }}>
-      {/* App Branding */}
-      <div style={{
-        padding: '24px 20px',
-        borderBottom: '1px solid var(--outline-subtle)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-      }}>
+    <>
+      {/* Mobile Drawer Backdrop */}
+      <div
+        className={`sidebar-backdrop ${isOpenMobile ? 'open' : ''}`}
+        onClick={onCloseMobile}
+        aria-hidden="true"
+      />
+
+      <aside className={`sidebar ${isOpenMobile ? 'open' : ''}`}>
+        {/* App Branding & Mobile Close */}
         <div style={{
-          width: '34px',
-          height: '34px',
-          borderRadius: '8px',
-          backgroundColor: 'var(--primary-container)',
-          color: 'var(--primary)',
+          padding: '20px 18px',
+          borderBottom: '1px solid var(--outline-subtle)',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
         }}>
-          <HardDrive size={18} />
-        </div>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: '16px', letterSpacing: '-0.3px', color: 'var(--text)' }}>
-            AIOUI
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '34px',
+              height: '34px',
+              borderRadius: '8px',
+              backgroundColor: 'var(--primary-container)',
+              color: 'var(--primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <HardDrive size={18} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '16px', letterSpacing: '-0.3px', color: 'var(--text)' }}>
+                AIOUI
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                Unified Downloader
+              </div>
+            </div>
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-            Unified Downloader
-          </div>
+
+          {onCloseMobile && (
+            <button
+              type="button"
+              className="sidebar-mobile-close"
+              onClick={onCloseMobile}
+              aria-label="Zamknij menu boczne"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                padding: '6px',
+                borderRadius: '6px',
+              }}
+            >
+              <X size={20} />
+            </button>
+          )}
         </div>
-      </div>
 
       {/* Navigation Links */}
       <nav style={{ padding: '16px 12px', flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -94,7 +131,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           return (
             <button
               key={item.id}
-              onClick={() => onTabChange(item.id)}
+              onClick={() => handleNavClick(item.id)}
+              aria-current={isActive ? 'page' : undefined}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -141,7 +179,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         <button
-          onClick={() => onTabChange('completed')}
+          onClick={() => handleNavClick('completed')}
+          aria-current={activeTab === 'completed' ? 'page' : undefined}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -188,7 +227,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         borderTop: '1px solid var(--outline-subtle)',
       }}>
         <button
-          onClick={onOpenSettings}
+          onClick={handleSettingsClick}
+          aria-label="Ustawienia usług"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -210,5 +250,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </div>
     </aside>
-  );
+  </>
+);
 };

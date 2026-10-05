@@ -33,7 +33,18 @@ export const Toast: React.FC<ToastProps> = ({ toast, onClose, onClick }) => {
 
   return (
     <div
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      tabIndex={0}
+      className="toast-card"
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       style={{
         position: 'fixed',
         bottom: '24px',
@@ -88,6 +99,7 @@ export const Toast: React.FC<ToastProps> = ({ toast, onClose, onClick }) => {
 
       <button
         type="button"
+        aria-label="Zamknij powiadomienie"
         onClick={(e) => {
           e.stopPropagation();
           onClose();
@@ -98,6 +110,7 @@ export const Toast: React.FC<ToastProps> = ({ toast, onClose, onClick }) => {
           color: 'var(--text-subtle)',
           cursor: 'pointer',
           padding: '4px',
+          borderRadius: '4px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

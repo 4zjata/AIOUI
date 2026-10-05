@@ -25,7 +25,7 @@ export const DownloadList: React.FC<DownloadListProps> = ({
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+    <section aria-label="Lista zadań pobierania" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
         <h2 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
           {activeTab === 'all' && 'Wszystkie zadania'}
@@ -40,18 +40,21 @@ export const DownloadList: React.FC<DownloadListProps> = ({
       </div>
 
       {filteredTasks.length === 0 ? (
-        <div style={{
-          padding: '48px 24px',
-          textAlign: 'center',
-          backgroundColor: 'var(--surface)',
-          borderRadius: '12px',
-          border: '1px dashed var(--outline-subtle)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '12px',
-          color: 'var(--text-muted)',
-        }}>
+        <div
+          role="status"
+          style={{
+            padding: '48px 24px',
+            textAlign: 'center',
+            backgroundColor: 'var(--surface)',
+            borderRadius: '12px',
+            border: '1px dashed var(--outline-subtle)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '12px',
+            color: 'var(--text-muted)',
+          }}
+        >
           <ArrowDownToLine size={32} color="var(--text-subtle)" />
           <div>
             <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
@@ -73,6 +76,6 @@ export const DownloadList: React.FC<DownloadListProps> = ({
           />
         ))
       )}
-    </div>
+    </section>
   );
 };

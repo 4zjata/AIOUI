@@ -2,11 +2,12 @@ import { AddLinkRequest, ClassifyResult, DownloadTask, TaskFile } from '../types
 
 const API_BASE = '/api';
 
-export async function classifyUrl(url: string): Promise<ClassifyResult> {
+export async function classifyUrl(url: string, signal?: AbortSignal): Promise<ClassifyResult> {
   const res = await fetch(`${API_BASE}/classify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url }),
+    signal,
   });
   if (!res.ok) {
     throw new Error(`Błąd klasyfikacji: ${res.statusText}`);
